@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xếp Thời Khóa Biểu Tự Động - Pastel Schedule Planner</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- html2canvas for timetable export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                    },
+                    colors: {
+                        pastel: {
+                            blue: '#E0E7FF',
+                            mint: '#D1FAE5',
+                            pink: '#FCE7F3',
+                            peach: '#FFEDD5',
+                            lavender: '#EDE9FE',
+                            yellow: '#FEF3C7',
+                            cyan: '#CCFBF1',
+                            rose: '#FFE4E6',
+                            purple: '#F3E8FF',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: linear-gradient(135deg, #fbfbfe 0%, #f4f6fb 50%, #fdf2f8 100%);
+            min-height: 100vh;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .schedule-grid-cell {
+            min-height: 48px;
+            border-bottom: 1px dashed #e2e8f0;
+        }
+        .schedule-event-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .schedule-event-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+            z-index: 30;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-full {
+                width: 100% !important;
+                box-shadow: none !important;
+                border: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased p-3 sm:p-6 md:p-8">
+
+    <!-- Header / Navbar -->
+    <header class="max-w-7xl mx-auto mb-8">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white/80 backdrop-blur-md p-6 rounded-3xl border border-slate-100 shadow-sm">
+            <div class="flex items-center space-x-4">
+                <div class="w-13 h-13 p-3.5 bg-gradient-to-tr from-pink-200 via-purple-200 to-indigo-200 rounded-2xl flex items-center justify-center text-purple-700 shadow-inner">
+                    <i class="fa-solid fa-calendar-days text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold bg-gradient-to-r from-purple-700 via-pink-600 to-indigo-600 bg-clip-text text-transparent">
+                        TKB Creator & Optimizer
+                    </h1>
+                    <p class="text-sm text-slate-500 font-medium">
+                        Tự động tạo & tối ưu hóa Thời Khóa Biểu đại học không trùng lịch
+                    </p>
+                </div>
+            </div>
+
+            <!-- Header Quick Actions -->
+            <div class="flex items-center flex-wrap gap-2.5">
+                <button onclick="openHelperModal()" class="px-4 py-2 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition flex items-center gap-2 border border-purple-200/60">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Lấy dữ liệu nhanh 1-Click
+                </button>
+                <button onclick="loadSampleData()" class="px-4 py-2 text-xs font-semibold text-pink-700 bg-pink-50 hover:bg-pink-100 rounded-xl transition flex items-center gap-2 border border-pink-200/60">
+                    <i class="fa-solid fa-flask"></i> Dữ liệu mẫu demo
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto space-y-8">
+
+        <!-- STEP 1: IMPORT DATA -->
+        <section class="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                <div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-xl bg-pink-100 text-pink-700 font-bold flex items-center justify-center text-sm shadow-sm">1</span>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Nhập danh sách học phần từ Portal</h2>
+                        <p class="text-xs text-slate-500">Dán mã HTML bảng đăng ký môn học hoặc tải file HTML lên</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <label class="cursor-pointer px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-xl transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-file-arrow-up"></i> Tải file HTML/TXT
+                        <input type="file" id="fileUpload" accept=".html,.htm,.txt" class="hidden" onchange="handleFileUpload(event)">
+                    </label>
+                    <button onclick="clearAllData()" class="px-3 py-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 text-xs font-medium rounded-xl transition flex items-center gap-1">
+                        <i class="fa-solid fa-trash"></i> Xóa
+                    </button>
+                </div>
+            </div>
+
+            <!-- HTML Input Area -->
+            <div class="space-y-4">
+                <div class="relative">
+                    <textarea id="htmlInput" rows="5" placeholder="Dán mã HTML bảng môn học từ web portal trường tại đây (hỗ trợ thẻ <table>, <tr>, thẻ data-bind như trong ví dụ)..." class="w-full p-4 rounded-2xl border border-slate-200 focus:border-purple-400 focus:ring-4 focus:ring-purple-100 font-mono text-xs text-slate-700 transition resize-y outline-none bg-slate-50/50"></textarea>
+                </div>
+
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div id="parseStatus" class="text-xs text-slate-500 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-info text-purple-400"></i> Chưa có dữ liệu học phần
+                    </div>
+                    <button id="btnParse" onclick="parseCoursesFromInput()" class="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white text-sm font-semibold rounded-2xl shadow-sm transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-bolt"></i> Xử lý dữ liệu học phần
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- STEP 2: COURSE SELECTION & SECTION CUSTOMIZATION -->
+        <section id="step2Section" class="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm hidden">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-sm shadow-sm">2</span>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Chọn môn học đăng ký trong học kỳ</h2>
+                        <p class="text-xs text-slate-500">Tick chọn môn bạn muốn học (môn được chọn sẽ tự động đưa lên đầu danh sách)</p>
+                    </div>
+                </div>
+
+                <!-- Search & Filters for Courses -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" id="searchCourseInput" onkeyup="filterCourseList()" placeholder="Tìm theo mã hoặc tên môn..." class="pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none w-52 sm:w-64 transition">
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button onclick="selectAllCourses(true)" class="px-3 py-1.5 text-xs font-medium text-purple-700 bg-purple-50 hover:bg-purple-100 rounded-xl transition">
+                            Chọn tất cả
+                        </button>
+                        <button onclick="selectAllCourses(false)" class="px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">
+                            Bỏ chọn
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Limit Information & Editable Controls Banner -->
+            <div id="limitBanner" class="mb-6 p-4 rounded-2xl bg-gradient-to-r from-purple-50/80 via-pink-50/80 to-indigo-50/80 border border-purple-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-white text-purple-700 flex items-center justify-center font-bold text-base shadow-sm border border-purple-100">
+                        <i class="fa-solid fa-graduation-cap"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-xs font-bold text-slate-800 flex items-center gap-2">
+                            <span>Giới hạn đăng ký học phần</span>
+                            <span id="limitDetectedBadge" class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-semibold hidden">Tự động nhận diện</span>
+                        </h4>
+                        <p class="text-[11px] text-slate-500" id="portalRegDetailsText">Giới hạn số tín chỉ và số môn tối đa trong học kỳ</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex items-center gap-1.5 bg-white px-3.5 py-1.5 rounded-xl border border-purple-100 text-xs shadow-sm">
+                        <span class="text-slate-600 font-medium">Số môn tối đa:</span>
+                        <input type="number" id="inputMaxSubjects" value="6" min="1" max="30" oninput="handleLimitChange()" class="w-12 text-center font-bold text-purple-700 outline-none bg-purple-50/70 rounded-lg py-0.5 border border-purple-200">
+                        <span class="text-slate-400 text-[11px]">môn</span>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 bg-white px-3.5 py-1.5 rounded-xl border border-pink-100 text-xs shadow-sm">
+                        <span class="text-slate-600 font-medium">Số TC tối đa:</span>
+                        <input type="number" id="inputMaxCredits" value="24" min="1" max="60" oninput="handleLimitChange()" class="w-12 text-center font-bold text-pink-600 outline-none bg-pink-50/70 rounded-lg py-0.5 border border-pink-200">
+                        <span class="text-slate-400 text-[11px]">TC</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Course Selection Grid -->
+            <div id="courseListContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[600px] overflow-y-auto pr-1">
+                <!-- Courses injected dynamically -->
+            </div>
+
+            <!-- Sticky Selection Summary & Generate Button -->
+            <div id="selectionSummaryContainer" class="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-purple-50/50 p-4 rounded-2xl border border-purple-100/60 transition-all">
+                <div class="flex items-center gap-4">
+                    <div id="summaryIconBox" class="w-10 h-10 rounded-xl bg-purple-200/70 text-purple-800 flex items-center justify-center font-bold text-lg transition">
+                        <i class="fa-solid fa-list-check"></i>
+                    </div>
+                    <div>
+                        <div class="text-sm font-bold text-slate-800 flex items-center gap-2 flex-wrap">
+                            <span>Đã chọn:</span>
+                            <span id="selectedCountDisplay" class="font-extrabold text-purple-700"><span id="selectedCount">0</span> / <span id="maxSubjectsDisplay">6</span> môn</span>
+                            <span class="text-slate-300">•</span>
+                            <span id="selectedCreditsDisplay" class="font-extrabold text-pink-600"><span id="selectedCredits">0</span> / <span id="maxCreditsDisplay">24</span> tín chỉ</span>
+                        </div>
+                        <div id="limitWarningMessage" class="text-xs text-slate-500 mt-0.5">
+                            Mỗi môn sẽ tự động chọn 1 lớp phù hợp không bị trùng giờ
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="solveSchedules()" class="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-purple-600 via-pink-600 to-indigo-600 hover:opacity-95 text-white font-bold text-sm rounded-2xl shadow-md shadow-purple-200/50 transition flex items-center justify-center gap-2.5">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> Tạo & Xếp Thời Khóa Biểu
+                </button>
+            </div>
+        </section>
+
+        <!-- STEP 3: SCHEDULE RESULTS, VISUAL CALENDAR, SORT & FILTER -->
+        <section id="step3Section" class="bg-white rounded-3xl border border-slate-100 p-6 md:p-8 shadow-sm hidden">
+            <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 font-bold flex items-center justify-center text-sm shadow-sm">3</span>
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800">Kết quả Thời Khóa Biểu khả thi</h2>
+                        <p class="text-xs text-slate-500">Tìm thấy <span id="totalFoundCount" class="font-bold text-purple-700">0</span> phương án không trùng lịch</p>
+                    </div>
+                </div>
+
+                <!-- Export & Share Buttons -->
+                <div class="flex flex-wrap items-center gap-2 no-print">
+                    <button onclick="exportToImage()" class="px-3.5 py-2 text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200/60 rounded-xl transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-camera"></i> Tải ảnh TKB (PNG)
+                    </button>
+                    <button onclick="window.print()" class="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-print"></i> In / Lưu PDF
+                    </button>
+                    <button onclick="copyClassCodes()" class="px-3.5 py-2 text-xs font-semibold text-pink-700 bg-pink-50 hover:bg-pink-100 border border-pink-200/60 rounded-xl transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-copy"></i> Sao chép mã lớp
+                    </button>
+                </div>
+            </div>
+
+            <!-- FILTERS & SORTING BAR -->
+            <div class="bg-slate-50/80 p-5 rounded-2xl border border-slate-100 mb-6 space-y-4 no-print">
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    <!-- Sort Option -->
+                    <div class="flex items-center gap-3">
+                        <label class="text-xs font-bold text-slate-700 whitespace-nowrap flex items-center gap-1.5">
+                            <i class="fa-solid fa-arrow-down-wide-short text-purple-500"></i> Sắp xếp theo:
+                        </label>
+                        <select id="sortBySelect" onchange="applyFiltersAndSort()" class="px-3.5 py-2 text-xs rounded-xl border border-slate-200 bg-white font-medium text-slate-700 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none">
+                            <option value="days_off_desc">Nhiều ngày nghỉ nhất (Học dồn ngày)</option>
+                            <option value="days_off_asc">Ít ngày nghỉ nhất (Lịch học rải đều)</option>
+                            <option value="study_days_asc">Số ngày đi học ít nhất</option>
+                            <option value="study_days_desc">Số ngày đi học nhiều nhất</option>
+                        </select>
+                    </div>
+
+                    <!-- Days Off Filter -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                            <i class="fa-solid fa-bed text-pink-500"></i> Bắt buộc nghỉ vào:
+                        </span>
+                        <div class="flex flex-wrap items-center gap-1.5" id="daysOffCheckboxGroup">
+                            <label class="day-off-chip cursor-pointer px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-pink-50 transition flex items-center gap-1">
+                                <input type="checkbox" value="2" onchange="applyFiltersAndSort()" class="accent-pink-600 rounded"> T2
+                            </label>
+                            <label class="day-off-chip cursor-pointer px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-pink-50 transition flex items-center gap-1">
+                                <input type="checkbox" value="3" onchange="applyFiltersAndSort()" class="accent-pink-600 rounded"> T3
+                            </label>
+                            <label class="day-off-chip cursor-pointer px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-pink-50 transition flex items-center gap-1">
+                                <input type="checkbox" value="4" onchange="applyFiltersAndSort()" class="accent-pink-600 rounded"> T4
+                            </label>
+                            <label class="day-off-chip cursor-pointer px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-pink-50 transition flex items-center gap-1">
+                                <input type="checkbox" value="5" onchange="applyFiltersAndSort()" class="accent-pink-600 rounded"> T5
+                            </label>
+                            <label class="day-off-chip cursor-pointer px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-pink-50 transition flex items-center gap-1">
+                                <input type="checkbox" value="6" onchange="applyFiltersAndSort()" class="accent-pink-600 rounded"> T6
+                            </label>
+                            <label class="day-off-chip cursor-pointer px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-pink-50 transition flex items-center gap-1">
+                                <input type="checkbox" value="7" onchange="applyFiltersAndSort()" class="accent-pink-600 rounded"> T7
+                            </label>
+                            <label class="day-off-chip cursor-pointer px-2.5 py-1 text-xs rounded-lg border border-slate-200 bg-white hover:bg-pink-50 transition flex items-center gap-1">
+                                <input type="checkbox" value="8" onchange="applyFiltersAndSort()" class="accent-pink-600 rounded"> CN
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- EMPTY SCHEDULE VIEW (Shown when 0 results found) -->
+            <div id="emptyScheduleView" class="text-center py-14 bg-slate-50/60 rounded-3xl border border-dashed border-slate-200 space-y-3 hidden mb-6">
+                <div class="w-16 h-16 mx-auto rounded-3xl bg-pink-100 text-pink-500 flex items-center justify-center text-2xl shadow-inner">
+                    <i class="fa-solid fa-calendar-xmark"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-700">Không tìm thấy thời khóa biểu khả thi</h3>
+                <p class="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                    Các môn bạn chọn đang bị trùng lịch với nhau hoặc tiêu chí lọc ngày nghỉ quá khắt khe. Hãy thử bỏ chọn bớt ngày nghỉ hoặc cho phép thêm các lớp khác.
+                </p>
+            </div>
+
+            <!-- HAS SCHEDULE CONTENT WRAPPER -->
+            <div id="hasScheduleContent" class="space-y-6">
+                <!-- Schedule Carousel & Navigator -->
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-purple-50/70 p-4 rounded-2xl border border-purple-100/60 no-print">
+                    <div class="flex items-center gap-3">
+                        <button onclick="prevSchedule()" class="w-9 h-9 rounded-xl bg-white hover:bg-purple-100 text-purple-700 font-bold border border-purple-200/60 flex items-center justify-center transition shadow-sm">
+                            <i class="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <div class="text-sm font-bold text-slate-800">
+                            Phương án <span id="currentScheduleIdxText" class="text-purple-700 font-extrabold text-base">1</span> / <span id="maxScheduleIdxText">1</span>
+                        </div>
+                        <button onclick="nextSchedule()" class="w-9 h-9 rounded-xl bg-white hover:bg-purple-100 text-purple-700 font-bold border border-purple-200/60 flex items-center justify-center transition shadow-sm">
+                            <i class="fa-solid fa-chevron-right"></i>
+                        </button>
+                    </div>
+
+                    <!-- Schedule Highlights -->
+                    <div class="flex flex-wrap items-center gap-2" id="currentScheduleBadges">
+                        <!-- Badges injected dynamically -->
+                    </div>
+                </div>
+
+                <!-- VISUAL TIMETABLE GRID (Exportable) -->
+                <div id="printableTimetableArea" class="bg-white p-4 sm:p-6 rounded-3xl border border-slate-200/80 shadow-sm print-full">
+                    <!-- Timetable Header Info -->
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-4 mb-4 border-b border-slate-100">
+                        <div>
+                            <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-calendar-check text-pink-500"></i> Lịch học trong tuần
+                            </h3>
+                            <p class="text-xs text-slate-500" id="timetableSubtitle">Đang xem phương án 1</p>
+                        </div>
+                        <div class="text-xs font-semibold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-xl border border-purple-100">
+                            Học kỳ mới • Tổng cộng <span id="gridTotalCredits">0</span> tín chỉ
+                        </div>
+                    </div>
+
+                    <!-- Timetable Grid -->
+                    <div class="overflow-x-auto">
+                        <div class="min-w-[700px] border border-slate-200 rounded-2xl overflow-hidden bg-slate-50/30">
+                            <!-- Days of Week Header -->
+                            <div class="grid grid-cols-8 bg-slate-100 text-slate-700 text-xs font-bold text-center border-b border-slate-200">
+                                <div class="p-3 border-r border-slate-200 bg-slate-200/60 text-slate-600">Giờ / Thứ</div>
+                                <div class="p-3 border-r border-slate-200">Thứ 2</div>
+                                <div class="p-3 border-r border-slate-200">Thứ 3</div>
+                                <div class="p-3 border-r border-slate-200">Thứ 4</div>
+                                <div class="p-3 border-r border-slate-200">Thứ 5</div>
+                                <div class="p-3 border-r border-slate-200">Thứ 6</div>
+                                <div class="p-3 border-r border-slate-200">Thứ 7</div>
+                                <div class="p-3">Chủ Nhật</div>
+                            </div>
+
+                            <!-- Time Slots Body (07:00 to 18:00) -->
+                            <div class="relative" id="timetableBody" style="min-height: 520px;">
+                                <!-- Time Rows and Grid lines generated via JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REGISTERED CLASSES TABLE FOR CURRENT SCHEDULE -->
+                <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+                    <div class="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-600">
+                            <i class="fa-solid fa-list-ul mr-1.5 text-purple-500"></i> Danh sách lớp học phần trong phương án này
+                        </h4>
+                        <span class="text-xs font-medium text-slate-500" id="classTableCount">0 lớp</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-xs text-slate-600">
+                            <thead class="bg-slate-50/60 text-slate-500 border-b border-slate-100 font-semibold">
+                                <tr>
+                                    <th class="p-3 text-center">STT</th>
+                                    <th class="p-3">Mã MH</th>
+                                    <th class="p-3">Tên môn học</th>
+                                    <th class="p-3 text-center">Mã lớp HP</th>
+                                    <th class="p-3 text-center">Số TC</th>
+                                    <th class="p-3">Lịch Lý Thuyết</th>
+                                    <th class="p-3">Lịch Thực Hành</th>
+                                </tr>
+                            </thead>
+                            <tbody id="selectedClassesTableBody" class="divide-y divide-slate-100 font-medium">
+                                <!-- Rows injected dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- CENTERED MODAL: CLASS SELECTION FOR A COURSE -->
+    <div id="classSelectionModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-lg w-full p-6 md:p-7 shadow-2xl border border-slate-100 space-y-5 max-h-[85vh] flex flex-col">
+            <!-- Modal Header -->
+            <div class="flex items-start justify-between pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-base">
+                        <i class="fa-solid fa-layer-group"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span id="modalCourseCodeBadge" class="px-2.5 py-0.5 rounded-lg text-xs font-bold bg-purple-100 text-purple-700">CODE</span>
+                            <span id="modalCourseCreditsBadge" class="text-xs text-slate-500 font-semibold">0 TC</span>
+                        </div>
+                        <h3 id="modalCourseTitle" class="text-sm font-bold text-slate-800 mt-1">Tên môn học</h3>
+                    </div>
+                </div>
+                <button onclick="closeClassModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Subheader Quick Actions -->
+            <div class="flex items-center justify-between text-xs text-slate-600 bg-purple-50/60 p-3 rounded-xl border border-purple-100">
+                <span class="font-medium">Chọn các lớp bạn muốn đăng ký:</span>
+                <div class="space-x-2 font-semibold">
+                    <button onclick="modalSelectAll(true)" class="text-purple-600 hover:text-purple-800">Chọn tất cả</button>
+                    <span class="text-slate-300">|</span>
+                    <button onclick="modalSelectAll(false)" class="text-slate-500 hover:text-slate-700">Bỏ chọn hết</button>
+                </div>
+            </div>
+
+            <!-- Class Checklist Items -->
+            <div id="modalClassListContainer" class="space-y-2.5 overflow-y-auto pr-1 flex-1 max-h-[360px]">
+                <!-- Injected dynamically -->
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                <span id="modalSelectionCountText" class="text-xs text-slate-500 font-medium">Đã chọn: 0 lớp</span>
+                <div class="flex items-center gap-2">
+                    <button onclick="closeClassModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl transition">
+                        Đóng
+                    </button>
+                    <button onclick="saveAndApplyClassModal()" class="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fa-solid fa-check"></i> Xác nhận
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HELPER MODAL: BOOKMARKLET & EASY PORTAL EXTRACTION -->
+    <div id="helperModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-6 md:p-8 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base font-bold text-slate-800">Hướng dẫn lấy dữ liệu từ Web Portal</h3>
+                        <p class="text-xs text-slate-500">2 cách cực kỳ nhanh để copy danh sách môn học</p>
+                    </div>
+                </div>
+                <button onclick="closeHelperModal()" class="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-xs transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Method 1: Bookmarklet / Console script -->
+            <div class="bg-purple-50/60 p-5 rounded-2xl border border-purple-100 space-y-3">
+                <h4 class="text-sm font-bold text-purple-900 flex items-center gap-2">
+                    <span class="w-5 h-5 rounded-full bg-purple-200 text-purple-800 text-[11px] flex items-center justify-center font-bold">1</span>
+                    Cách 1: Copy bằng Console trình duyệt (Khuyên dùng - 1 Click)
+                </h4>
+                <p class="text-xs text-purple-700 leading-relaxed">
+                    Khi đang ở trang đăng ký học phần / danh sách môn học của trường:
+                    Nhấn phím <kbd class="px-1.5 py-0.5 bg-white rounded border border-purple-200 font-mono text-[10px]">F12</kbd> (hoặc chuột phải chọn <em>Inspect / Kiểm tra</em>) &rarr; chuyển sang tab <strong>Console</strong> &rarr; dán đoạn mã bên dưới và nhấn <strong>Enter</strong>:
+                </p>
+                <div class="relative">
+                    <pre id="consoleScriptCode" class="p-3.5 pr-32 bg-slate-900 text-emerald-300 rounded-xl font-mono text-[11px] overflow-x-auto select-all leading-relaxed whitespace-pre-wrap break-all">copy((document.querySelector('[data-bind*="SoTCMax"], [data-bind*="SoMonMax"]')?.closest('.panel-default, .panel, .panel-body')?.outerHTML || document.querySelector('.panel.panel-default, .panel-body')?.outerHTML || '') + '\n' + (document.querySelector('#tblSinhVien, table')?.outerHTML || '')); alert('Đã sao chép danh sách môn học, số tín chỉ & số môn tối đa vào Clipboard!');</pre>
+                    <button type="button" onclick="copyConsoleScript()" class="absolute right-2.5 top-2.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white text-xs rounded-lg font-semibold transition flex items-center gap-1.5 shadow-sm cursor-pointer z-10">
+                        <i class="fa-solid fa-copy"></i> Sao chép lệnh
+                    </button>
+                </div>
+                <p class="text-[11px] text-purple-600">Sau đó quay lại webapp này, nhấn <kbd class="px-1 py-0.5 bg-white rounded border text-[10px]">Ctrl + V</kbd> vào ô Bước 1 và nhấn "Xử lý dữ liệu"!</p>
+            </div>
+
+            <!-- Method 2: Manual copy -->
+            <div class="bg-pink-50/60 p-5 rounded-2xl border border-pink-100 space-y-2">
+                <h4 class="text-sm font-bold text-pink-900 flex items-center gap-2">
+                    <span class="w-5 h-5 rounded-full bg-pink-200 text-pink-800 text-[11px] flex items-center justify-center font-bold">2</span>
+                    Cách 2: Chuột phải vào bảng chọn Inspect & Copy OuterHTML
+                </h4>
+                <p class="text-xs text-pink-800 leading-relaxed">
+                    Chuột phải vào một hàng bất kỳ trong bảng môn học &rarr; Chọn <strong>Inspect (Kiểm tra)</strong> &rarr; Chọn thẻ <code class="bg-white px-1 py-0.5 rounded border border-pink-200 text-pink-700">&lt;table&gt;</code> hoặc <code class="bg-white px-1 py-0.5 rounded border border-pink-200 text-pink-700">&lt;tbody&gt;</code> &rarr; Chuột phải chọn <strong>Copy &rarr; Copy outerHTML</strong> rồi dán vào webapp.
+                </p>
+            </div>
+
+            <div class="flex justify-end">
+                <button onclick="closeHelperModal()" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-xl transition">
+                    Đã hiểu
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="px-5 py-3 rounded-2xl bg-slate-900 text-white text-xs font-semibold shadow-xl flex items-center gap-2.5" id="toastMessage">
+            <i class="fa-solid fa-check text-emerald-400"></i> Thông báo
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script>
+        // State variables
+        let parsedCourses = [];          // Flat list of all classes
+        let courseGroups = [];           // Grouped by course_code
+        let selectedCourses = new Set(); // Set of selected course_codes
+        let classSelections = {};        // { course_code: [selected_class_codes] }
+        let allSchedules = [];           // All generated schedule variations
+        let currentScheduleIdx = 0;      // Active schedule view index
+        let activeModalCourseCode = null;// Active course in modal
+        let portalLimits = {
+            max_credits: 24,
+            max_subjects: 6,
+            reg_credits: 0,
+            reg_subjects: 0
+        };
+
+        // Pastel color palette for subjects in timetable
+        const PASTEL_PALETTES = [
+            { bg: '#E0E7FF', border: '#C7D2FE', text: '#3730A3', tag: '#4338CA' }, // Indigo
+            { bg: '#FCE7F3', border: '#FBCFE8', text: '#9D174D', tag: '#BE185D' }, // Pink
+            { bg: '#D1FAE5', border: '#A7F3D0', text: '#065F46', tag: '#047857' }, // Emerald
+            { bg: '#EDE9FE', border: '#DDD6FE', text: '#5B21B6', tag: '#6D28D9' }, // Lavender
+            { bg: '#FFEDD5', border: '#FED7AA', text: '#9A3412', tag: '#C2410C' }, // Peach/Orange
+            { bg: '#FEF3C7', border: '#FDE68A', text: '#92400E', tag: '#B45309' }, // Yellow/Amber
+            { bg: '#CCFBF1', border: '#99F6E4', text: '#115E59', tag: '#0F766E' }, // Teal
+            { bg: '#FFE4E6', border: '#FECDD3', text: '#9F1239', tag: '#BE123C' }, // Rose
+            { bg: '#E2E8F0', border: '#CBD5E1', text: '#334155', tag: '#475569' }, // Slate
+        ];
+
+        // Toast Helper
+        function showToast(message, icon = 'fa-check text-emerald-400') {
+            const toast = document.getElementById('toastNotification');
+            const msgEl = document.getElementById('toastMessage');
+            msgEl.innerHTML = `<i class="fa-solid ${icon}"></i> ${message}`;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        // Helper Modal
+        function openHelperModal() {
+            document.getElementById('helperModal').classList.remove('hidden');
+        }
+        function closeHelperModal() {
+            document.getElementById('helperModal').classList.add('hidden');
+        }
+
+        // File upload handler
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('htmlInput').value = e.target.result;
+                parseCoursesFromInput();
+            };
+            reader.readAsText(file);
+        }
+
+        // Clear all data
+        function clearAllData() {
+            document.getElementById('htmlInput').value = '';
+            parsedCourses = [];
+            courseGroups = [];
+            selectedCourses.clear();
+            classSelections = {};
+            allSchedules = [];
+            portalLimits = { max_credits: 24, max_subjects: 6, reg_credits: 0, reg_subjects: 0 };
+            document.getElementById('inputMaxSubjects').value = 6;
+            document.getElementById('inputMaxCredits').value = 24;
+            document.getElementById('limitDetectedBadge').classList.add('hidden');
+            document.getElementById('portalRegDetailsText').textContent = 'Giới hạn số tín chỉ và số môn tối đa trong học kỳ';
+            document.getElementById('step2Section').classList.add('hidden');
+            document.getElementById('step3Section').classList.add('hidden');
+            document.getElementById('parseStatus').innerHTML = '<i class="fa-solid fa-circle-info text-purple-400"></i> Chưa có dữ liệu học phần';
+            showToast('Đã xóa dữ liệu', 'fa-trash text-slate-400');
+        }
+
+        // Load sample data
+        async function loadSampleData() {
+            try {
+                const res = await fetch('/api/sample-data');
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('htmlInput').value = data.raw_html;
+                    await parseCoursesFromInput();
+                    showToast('Đã tải dữ liệu mẫu thành công!');
+                }
+            } catch (err) {
+                showToast('Lỗi khi tải dữ liệu mẫu', 'fa-triangle-exclamation text-red-400');
+            }
+        }
+
+        // Handle user changing max limits inputs
+        function handleLimitChange() {
+            const maxSubVal = parseInt(document.getElementById('inputMaxSubjects').value);
+            const maxCredVal = parseInt(document.getElementById('inputMaxCredits').value);
+            if (!isNaN(maxSubVal) && maxSubVal > 0) portalLimits.max_subjects = maxSubVal;
+            if (!isNaN(maxCredVal) && maxCredVal > 0) portalLimits.max_credits = maxCredVal;
+            updateSelectedSummary();
+        }
+
+        // Parse HTML input
+        async function parseCoursesFromInput() {
+            const html = document.getElementById('htmlInput').value;
+            if (!html.trim()) {
+                showToast('Vui lòng nhập HTML bảng học phần', 'fa-triangle-exclamation text-amber-400');
+                return;
+            }
+
+            const btn = document.getElementById('btnParse');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang xử lý...';
+
+            try {
+                const res = await fetch('/api/parse-html', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ html })
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    parsedCourses = data.raw_parsed;
+                    courseGroups = data.course_groups;
+                    selectedCourses.clear(); // NO pre-selected courses
+                    classSelections = {};
+
+                    // Process portal limits
+                    if (data.limits) {
+                        if (data.limits.max_credits) portalLimits.max_credits = data.limits.max_credits;
+                        if (data.limits.max_subjects) portalLimits.max_subjects = data.limits.max_subjects;
+                        portalLimits.reg_credits = data.limits.reg_credits || 0;
+                        portalLimits.reg_subjects = data.limits.reg_subjects || 0;
+
+                        document.getElementById('inputMaxSubjects').value = portalLimits.max_subjects;
+                        document.getElementById('inputMaxCredits').value = portalLimits.max_credits;
+
+                        const badge = document.getElementById('limitDetectedBadge');
+                        if (data.limits.max_credits || data.limits.max_subjects) {
+                            badge.classList.remove('hidden');
+                        } else {
+                            badge.classList.add('hidden');
+                        }
+
+                        if (portalLimits.reg_credits > 0 || portalLimits.reg_subjects > 0) {
+                            document.getElementById('portalRegDetailsText').textContent = `Đã ĐK: ${portalLimits.reg_subjects} môn (${portalLimits.reg_credits} TC) • Còn lại: ${Math.max(0, portalLimits.max_subjects - portalLimits.reg_subjects)} môn (${Math.max(0, portalLimits.max_credits - portalLimits.reg_credits)} TC)`;
+                        } else {
+                            document.getElementById('portalRegDetailsText').textContent = `Giới hạn: Tối đa ${portalLimits.max_subjects} môn học & ${portalLimits.max_credits} tín chỉ cho học kỳ`;
+                        }
+                    }
+
+                    renderCourseList();
+                    document.getElementById('step2Section').classList.remove('hidden');
+                    document.getElementById('step3Section').classList.add('hidden');
+                    document.getElementById('parseStatus').innerHTML = `<i class="fa-solid fa-check-circle text-emerald-500"></i> Đã trích xuất thành công <strong>${data.total_courses} môn học</strong> (${data.total_classes} lớp học phần)`;
+                    showToast(`Trích xuất thành công ${data.total_courses} môn học!`);
+                    
+                    document.getElementById('step2Section').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    showToast(data.message || 'Lỗi khi trích xuất', 'fa-triangle-exclamation text-red-400');
+                }
+            } catch (err) {
+                showToast('Không thể kết nối đến máy chủ', 'fa-circle-xmark text-red-400');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Xử lý dữ liệu học phần';
+            }
+        }
+
+        // Render Course List for Selection (Sorted: selected courses jump to TOP)
+        function renderCourseList() {
+            const container = document.getElementById('courseListContainer');
+            const searchVal = (document.getElementById('searchCourseInput').value || '').toLowerCase().trim();
+
+            container.innerHTML = '';
+
+            // Sort courseGroups so selected courses jump to the top!
+            const sortedGroups = [...courseGroups].sort((a, b) => {
+                const aSel = selectedCourses.has(a.course_code) ? 1 : 0;
+                const bSel = selectedCourses.has(b.course_code) ? 1 : 0;
+                if (aSel !== bSel) return bSel - aSel;
+                return 0; // retain initial relative order
+            });
+
+            sortedGroups.forEach((group, index) => {
+                const isMatch = group.course_name.toLowerCase().includes(searchVal) || group.course_code.toLowerCase().includes(searchVal);
+                if (!isMatch) return;
+
+                const isSelected = selectedCourses.has(group.course_code);
+                const totalClassesCount = group.classes.length;
+                const chosenClasses = classSelections[group.course_code];
+                const colorPalette = PASTEL_PALETTES[index % PASTEL_PALETTES.length];
+
+                // Compute selected classes display text
+                let classDisplayText = '';
+                let isCustomized = false;
+                if (!chosenClasses || chosenClasses.length === 0 || chosenClasses.length === totalClassesCount) {
+                    classDisplayText = `Tất cả ${totalClassesCount} lớp`;
+                } else {
+                    isCustomized = true;
+                    classDisplayText = `${chosenClasses.length}/${totalClassesCount} lớp: ${chosenClasses.join(', ')}`;
+                }
+
+                const card = document.createElement('div');
+                card.className = `p-5 rounded-2xl border transition-all duration-200 ${
+                    isSelected ? 'bg-purple-50/40 border-purple-300 shadow-sm ring-1 ring-purple-200' : 'bg-white border-slate-200 hover:border-slate-300'
+                }`;
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between gap-3">
+                        <div class="flex items-start gap-3 flex-1">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} 
+                                onchange="toggleCourseSelection('${group.course_code}', this.checked)"
+                                class="mt-1 w-4 h-4 accent-purple-600 rounded cursor-pointer">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="px-2.5 py-0.5 rounded-lg text-xs font-bold" style="background-color: ${colorPalette.bg}; color: ${colorPalette.text}; border: 1px solid ${colorPalette.border}">
+                                        ${group.course_code}
+                                    </span>
+                                    <span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 text-[11px] font-semibold">
+                                        ${group.credits} TC
+                                    </span>
+                                    <span class="text-[11px] text-slate-400 font-medium">
+                                        ${totalClassesCount} lớp HP
+                                    </span>
+                                </div>
+                                <h3 class="font-bold text-sm text-slate-800 mt-1.5">${group.course_name}</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Selected Classes Info & Modal Trigger -->
+                    <div class="mt-3 pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div class="text-[11px] ${isCustomized ? 'text-purple-700 font-bold' : 'text-slate-500 font-medium'} flex items-center gap-1.5 truncate">
+                            <i class="fa-solid fa-chalkboard-user text-[10px] text-purple-400"></i>
+                            <span class="truncate">${classDisplayText}</span>
+                        </div>
+                        <button onclick="openClassModal('${group.course_code}')" class="px-2.5 py-1 text-xs font-semibold text-purple-600 hover:text-purple-800 bg-purple-50/70 hover:bg-purple-100/70 rounded-lg transition flex items-center justify-center gap-1 border border-purple-200/50">
+                            <i class="fa-solid fa-sliders text-[10px]"></i> Chọn lớp cụ thể
+                        </button>
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+
+            updateSelectedSummary();
+        }
+
+        // Toggle course selection
+        function toggleCourseSelection(code, isChecked) {
+            if (isChecked) {
+                selectedCourses.add(code);
+            } else {
+                selectedCourses.delete(code);
+            }
+            renderCourseList();
+        }
+
+        // Select / Deselect all
+        function selectAllCourses(select) {
+            if (select) {
+                courseGroups.forEach(g => selectedCourses.add(g.course_code));
+            } else {
+                selectedCourses.clear();
+            }
+            renderCourseList();
+        }
+
+        function filterCourseList() {
+            renderCourseList();
+        }
+
+        // Update footer summary with limit validations
+        function updateSelectedSummary() {
+            let totalCredits = 0;
+            selectedCourses.forEach(code => {
+                const grp = courseGroups.find(g => g.course_code === code);
+                if (grp) totalCredits += grp.credits;
+            });
+
+            const count = selectedCourses.size;
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('maxSubjectsDisplay').textContent = portalLimits.max_subjects;
+            document.getElementById('selectedCredits').textContent = totalCredits;
+            document.getElementById('maxCreditsDisplay').textContent = portalLimits.max_credits;
+
+            const countDisplay = document.getElementById('selectedCountDisplay');
+            const creditsDisplay = document.getElementById('selectedCreditsDisplay');
+            const warningMsg = document.getElementById('limitWarningMessage');
+            const iconBox = document.getElementById('summaryIconBox');
+            const container = document.getElementById('selectionSummaryContainer');
+
+            const isOverSubjects = count > portalLimits.max_subjects;
+            const isOverCredits = totalCredits > portalLimits.max_credits;
+
+            if (isOverSubjects || isOverCredits) {
+                let reasons = [];
+                if (isOverSubjects) {
+                    reasons.push(`vượt quá ${count - portalLimits.max_subjects} môn`);
+                    countDisplay.className = "font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200";
+                } else {
+                    countDisplay.className = "font-extrabold text-purple-700";
+                }
+
+                if (isOverCredits) {
+                    reasons.push(`vượt quá ${totalCredits - portalLimits.max_credits} tín chỉ`);
+                    creditsDisplay.className = "font-extrabold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-lg border border-rose-200";
+                } else {
+                    creditsDisplay.className = "font-extrabold text-pink-600";
+                }
+
+                warningMsg.innerHTML = `<span class="text-rose-600 font-bold flex items-center gap-1.5"><i class="fa-solid fa-triangle-exclamation"></i> Cảnh báo: Bạn đang chọn ${reasons.join(' và ')} so với quy định tối đa!</span>`;
+                iconBox.className = "w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center font-bold text-lg transition shadow-inner";
+                container.className = "mt-8 pt-6 border-t border-rose-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-rose-50/50 p-4 rounded-2xl border border-rose-200 transition-all";
+            } else {
+                countDisplay.className = "font-extrabold text-purple-700";
+                creditsDisplay.className = "font-extrabold text-pink-600";
+                warningMsg.textContent = "Mỗi môn sẽ tự động chọn 1 lớp phù hợp không bị trùng giờ";
+                warningMsg.className = "text-xs text-slate-500 mt-0.5";
+                iconBox.className = "w-10 h-10 rounded-xl bg-purple-200/70 text-purple-800 flex items-center justify-center font-bold text-lg transition";
+                container.className = "mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-purple-50/50 p-4 rounded-2xl border border-purple-100/60 transition-all";
+            }
+        }
+
+        // ==================== CENTERED MODAL FOR CLASS SELECTION ====================
+        function openClassModal(courseCode) {
+            const grp = courseGroups.find(g => g.course_code === courseCode);
+            if (!grp) return;
+
+            activeModalCourseCode = courseCode;
+            document.getElementById('modalCourseCodeBadge').textContent = grp.course_code;
+            document.getElementById('modalCourseCreditsBadge').textContent = `${grp.credits} Tín chỉ`;
+            document.getElementById('modalCourseTitle').textContent = grp.course_name;
+
+            const chosen = classSelections[courseCode];
+            const isAllSelected = !chosen || chosen.length === 0 || chosen.length === grp.classes.length;
+
+            const container = document.getElementById('modalClassListContainer');
+            container.innerHTML = '';
+
+            grp.classes.forEach(cls => {
+                const isChecked = isAllSelected ? true : chosen.includes(cls.class_code);
+
+                const item = document.createElement('label');
+                item.className = 'flex items-start gap-3 p-3 rounded-2xl border border-slate-200 hover:border-purple-300 hover:bg-purple-50/20 cursor-pointer text-xs transition';
+                item.innerHTML = `
+                    <input type="checkbox" value="${cls.class_code}" class="modal-class-checkbox mt-1 w-4 h-4 accent-purple-600 rounded cursor-pointer" ${isChecked ? 'checked' : ''} onchange="updateModalCount()">
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between">
+                            <span class="font-extrabold text-sm text-slate-800">${cls.class_code}</span>
+                            ${cls.max_sv ? `<span class="text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">Sĩ số: ${cls.max_sv}</span>` : ''}
+                        </div>
+                        <div class="text-xs text-slate-600 mt-1 space-y-0.5">
+                            ${cls.schedule_lt_raw ? `<div class="flex items-center gap-1.5"><span class="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded">LT:</span> <span>${cls.schedule_lt_raw}</span></div>` : ''}
+                            ${cls.schedule_th_raw ? `<div class="flex items-center gap-1.5"><span class="font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded">TH:</span> <span>${cls.schedule_th_raw}</span></div>` : ''}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+
+            updateModalCount();
+            document.getElementById('classSelectionModal').classList.remove('hidden');
+        }
+
+        function closeClassModal() {
+            document.getElementById('classSelectionModal').classList.add('hidden');
+            activeModalCourseCode = null;
+        }
+
+        function modalSelectAll(selectAll) {
+            const checkboxes = document.querySelectorAll('.modal-class-checkbox');
+            checkboxes.forEach(cb => cb.checked = selectAll);
+            updateModalCount();
+        }
+
+        function updateModalCount() {
+            const checkedBoxes = document.querySelectorAll('.modal-class-checkbox:checked');
+            const totalBoxes = document.querySelectorAll('.modal-class-checkbox');
+            document.getElementById('modalSelectionCountText').textContent = `Đã chọn: ${checkedBoxes.length} / ${totalBoxes.length} lớp`;
+        }
+
+        function saveAndApplyClassModal() {
+            if (!activeModalCourseCode) return;
+            const grp = courseGroups.find(g => g.course_code === activeModalCourseCode);
+            if (!grp) return;
+
+            const checkedCodes = Array.from(document.querySelectorAll('.modal-class-checkbox:checked')).map(cb => cb.value);
+
+            if (checkedCodes.length === 0) {
+                showToast('Vui lòng chọn ít nhất 1 lớp cho môn học này!', 'fa-triangle-exclamation text-amber-400');
+                return;
+            }
+
+            if (checkedCodes.length === grp.classes.length) {
+                delete classSelections[activeModalCourseCode];
+            } else {
+                classSelections[activeModalCourseCode] = checkedCodes;
+            }
+
+            closeClassModal();
+            renderCourseList();
+            showToast(`Đã lưu tùy chọn lớp cho môn ${activeModalCourseCode}!`);
+        }
+
+        // ==================== STEP 3: SOLVE AND GENERATE SCHEDULES ====================
+        async function solveSchedules() {
+            if (selectedCourses.size === 0) {
+                showToast('Vui lòng chọn ít nhất 1 môn học!', 'fa-triangle-exclamation text-amber-400');
+                return;
+            }
+
+            // Limit validation warning before generating
+            let totalCredits = 0;
+            selectedCourses.forEach(code => {
+                const grp = courseGroups.find(g => g.course_code === code);
+                if (grp) totalCredits += grp.credits;
+            });
+            const count = selectedCourses.size;
+
+            if (count > portalLimits.max_subjects || totalCredits > portalLimits.max_credits) {
+                const proceed = confirm(`⚠️ CẢNH BÁO VƯỢT QUÁ GIỚI HẠN:\n\n` +
+                    `- Số môn đã chọn: ${count} / ${portalLimits.max_subjects} môn\n` +
+                    `- Số tín chỉ đã chọn: ${totalCredits} / ${portalLimits.max_credits} tín chỉ\n\n` +
+                    `Bạn có muốn tiếp tục tạo các phương án xếp thời khóa biểu không?`);
+                if (!proceed) return;
+            }
+
+            const daysOffChecked = Array.from(document.querySelectorAll('#daysOffCheckboxGroup input:checked')).map(cb => parseInt(cb.value));
+            const sortBy = document.getElementById('sortBySelect').value;
+
+            try {
+                const res = await fetch('/api/generate-schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        courses: parsedCourses,
+                        selected_courses: Array.from(selectedCourses),
+                        class_selections: classSelections,
+                        filter_days_off: daysOffChecked,
+                        sort_by: sortBy
+                    })
+                });
+
+                const data = await res.json();
+                if (data.status === 'success') {
+                    allSchedules = data.schedules || [];
+                    currentScheduleIdx = 0;
+
+                    document.getElementById('step3Section').classList.remove('hidden');
+
+                    if (allSchedules.length === 0) {
+                        showToast('Không tìm thấy phương án phù hợp (bị trùng lịch hoặc lọc quá chặt)', 'fa-circle-exclamation text-amber-500');
+                        renderEmptyScheduleView();
+                    } else {
+                        document.getElementById('totalFoundCount').textContent = allSchedules.length;
+                        document.getElementById('maxScheduleIdxText').textContent = allSchedules.length;
+                        renderCurrentSchedule();
+                        showToast(`Đã tạo thành công ${allSchedules.length} phương án xếp lịch!`);
+                    }
+
+                    document.getElementById('step3Section').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    showToast(data.message || 'Lỗi khi xếp lịch', 'fa-triangle-exclamation text-red-400');
+                }
+            } catch (err) {
+                console.error("Lỗi solveSchedules:", err);
+                showToast('Lỗi khi gửi yêu cầu xếp lịch', 'fa-circle-xmark text-red-400');
+            }
+        }
+
+        function applyFiltersAndSort() {
+            if (selectedCourses.size > 0 && parsedCourses.length > 0) {
+                solveSchedules();
+            }
+        }
+
+        function prevSchedule() {
+            if (allSchedules.length === 0) return;
+            currentScheduleIdx = (currentScheduleIdx - 1 + allSchedules.length) % allSchedules.length;
+            renderCurrentSchedule();
+        }
+
+        function nextSchedule() {
+            if (allSchedules.length === 0) return;
+            currentScheduleIdx = (currentScheduleIdx + 1) % allSchedules.length;
+            renderCurrentSchedule();
+        }
+
+        // Render Empty View (Without destroying DOM elements!)
+        function renderEmptyScheduleView() {
+            document.getElementById('totalFoundCount').textContent = '0';
+            document.getElementById('maxScheduleIdxText').textContent = '0';
+            document.getElementById('currentScheduleIdxText').textContent = '0';
+            document.getElementById('currentScheduleBadges').innerHTML = '';
+
+            // Toggle visibility safely
+            document.getElementById('emptyScheduleView').classList.remove('hidden');
+            document.getElementById('hasScheduleContent').classList.add('hidden');
+        }
+
+        // Render Active Schedule View
+        function renderCurrentSchedule() {
+            if (allSchedules.length === 0) {
+                renderEmptyScheduleView();
+                return;
+            }
+
+            // Ensure content wrapper is shown and empty view is hidden
+            document.getElementById('emptyScheduleView').classList.add('hidden');
+            document.getElementById('hasScheduleContent').classList.remove('hidden');
+
+            const sched = allSchedules[currentScheduleIdx];
+            document.getElementById('totalFoundCount').textContent = allSchedules.length;
+            document.getElementById('maxScheduleIdxText').textContent = allSchedules.length;
+            document.getElementById('currentScheduleIdxText').textContent = currentScheduleIdx + 1;
+            document.getElementById('timetableSubtitle').textContent = `Phương án ${currentScheduleIdx + 1} / ${allSchedules.length}`;
+            document.getElementById('gridTotalCredits').textContent = `${sched.total_credits} / ${portalLimits.max_credits}`;
+
+            // Badges
+            const isOverCred = sched.total_credits > portalLimits.max_credits;
+            const isOverSub = sched.classes.length > portalLimits.max_subjects;
+
+            const badgesContainer = document.getElementById('currentScheduleBadges');
+            badgesContainer.innerHTML = `
+                <span class="px-3 py-1 rounded-xl bg-pink-100/80 text-pink-700 text-xs font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-umbrella-beach"></i> Nghỉ ${sched.num_days_off} ngày (${sched.days_off_names.join(', ') || 'Không có'})
+                </span>
+                <span class="px-3 py-1 rounded-xl bg-emerald-100/80 text-emerald-800 text-xs font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-graduation-cap"></i> Học ${sched.num_study_days} ngày (${sched.study_days_names.join(', ')})
+                </span>
+                <span class="px-3 py-1 rounded-xl ${isOverCred || isOverSub ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-purple-100/80 text-purple-800'} text-xs font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-book-open"></i> ${sched.classes.length} / ${portalLimits.max_subjects} môn (${sched.total_credits} / ${portalLimits.max_credits} TC)
+                </span>
+            `;
+
+            // Draw Timetable Grid
+            drawTimetableGrid(sched.slots);
+
+            // Populate Classes Table
+            const tbody = document.getElementById('selectedClassesTableBody');
+            tbody.innerHTML = '';
+            document.getElementById('classTableCount').textContent = `${sched.classes.length} lớp học phần`;
+
+            sched.classes.forEach((cls, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+                tr.innerHTML = `
+                    <td class="p-3 text-center text-slate-400 font-semibold">${idx + 1}</td>
+                    <td class="p-3 font-bold text-purple-700">${cls.course_code}</td>
+                    <td class="p-3 font-semibold text-slate-800">${cls.course_name}</td>
+                    <td class="p-3 text-center font-bold text-pink-600 bg-pink-50/50 rounded-lg">${cls.class_code}</td>
+                    <td class="p-3 text-center font-semibold text-slate-700">${cls.credits}</td>
+                    <td class="p-3 text-slate-600">${cls.schedule_lt_raw || '-'}</td>
+                    <td class="p-3 text-slate-600">${cls.schedule_th_raw || '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Draw Visual Calendar Grid
+        function drawTimetableGrid(slots) {
+            const body = document.getElementById('timetableBody');
+            if (!body) return;
+            body.innerHTML = '';
+
+            const startHour = 7;
+            const endHour = 18;
+            const totalHours = endHour - startHour;
+            const hourHeight = 52; // pixels per hour
+
+            // Render background hour rows
+            for (let h = startHour; h < endHour; h++) {
+                const row = document.createElement('div');
+                row.className = 'grid grid-cols-8 border-b border-slate-100 schedule-grid-cell';
+                row.style.height = `${hourHeight}px`;
+
+                let hourLabel = `${h < 10 ? '0' + h : h}:00 - ${h+1 < 10 ? '0' + (h+1) : h+1}:00`;
+                row.innerHTML = `
+                    <div class="p-2 text-[10px] font-semibold text-slate-400 text-center border-r border-slate-100 bg-slate-50/40 flex items-center justify-center">
+                        ${hourLabel}
+                    </div>
+                    <div class="border-r border-slate-100/60"></div>
+                    <div class="border-r border-slate-100/60"></div>
+                    <div class="border-r border-slate-100/60"></div>
+                    <div class="border-r border-slate-100/60"></div>
+                    <div class="border-r border-slate-100/60"></div>
+                    <div class="border-r border-slate-100/60"></div>
+                    <div></div>
+                `;
+                body.appendChild(row);
+            }
+
+            // Map course code to pastel colors
+            const codeToColor = {};
+            let colorIdx = 0;
+
+            // Render event cards
+            slots.forEach(slot => {
+                if (!codeToColor[slot.course_code]) {
+                    codeToColor[slot.course_code] = PASTEL_PALETTES[colorIdx % PASTEL_PALETTES.length];
+                    colorIdx++;
+                }
+                const palette = codeToColor[slot.course_code];
+
+                // Day: 2=T2 (col 2), 3=T3 (col 3), ..., 8=CN (col 8)
+                const dayColIndex = slot.day - 1; // 1 to 7 (where 1=T2, 7=CN)
+                const colWidthPercent = 100 / 8; // 8 columns total (col 0 is time)
+                const leftPercent = colWidthPercent * dayColIndex;
+
+                // Time calculation
+                const startMins = slot.start_min - (startHour * 60);
+                const durationMins = slot.end_min - slot.start_min;
+
+                const topPx = (startMins / 60) * hourHeight;
+                const heightPx = Math.max((durationMins / 60) * hourHeight - 4, 34);
+
+                const card = document.createElement('div');
+                card.className = 'absolute schedule-event-card p-2 rounded-xl text-left overflow-hidden cursor-pointer shadow-sm';
+                card.style.left = `calc(${leftPercent}% + 2px)`;
+                card.style.width = `calc(${colWidthPercent}% - 4px)`;
+                card.style.top = `${topPx + 2}px`;
+                card.style.height = `${heightPx}px`;
+                card.style.backgroundColor = palette.bg;
+                card.style.border = `1px solid ${palette.border}`;
+                card.style.color = palette.text;
+
+                card.title = `${slot.course_name} (${slot.course_code})\nLớp: ${slot.class_code}\nGiờ: ${slot.start_str} - ${slot.end_str} (${slot.type || 'LT'})`;
+
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-1 mb-0.5">
+                        <span class="font-extrabold text-[11px] truncate">${slot.course_code}</span>
+                        <span class="text-[9px] font-bold px-1 py-0.2 rounded bg-white/70 shadow-2xs">${slot.type || 'LT'}</span>
+                    </div>
+                    <div class="text-[11px] font-bold line-clamp-1 leading-tight text-slate-800">${slot.course_name}</div>
+                    <div class="text-[10px] font-semibold text-slate-600 mt-0.5 flex items-center justify-between">
+                        <span>Lớp: ${slot.class_code}</span>
+                        <span>${slot.start_str}-${slot.end_str}</span>
+                    </div>
+                `;
+
+                body.appendChild(card);
+            });
+        }
+
+        // Export Timetable to Image
+        function exportToImage() {
+            const element = document.getElementById('printableTimetableArea');
+            showToast('Đang tạo ảnh thời khóa biểu...', 'fa-spinner fa-spin text-purple-400');
+            
+            html2canvas(element, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `ThoiKhoaBieu_PhuongAn_${currentScheduleIdx + 1}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                showToast('Đã tải ảnh TKB thành công!');
+            }).catch(() => {
+                showToast('Lỗi khi xuất ảnh', 'fa-triangle-exclamation text-red-400');
+            });
+        }
+
+        // Clipboard Helper with fallback for all browsers and HTTP contexts
+        function copyToClipboardHelper(text, successMsg) {
+            if (!text) return;
+            if (navigator.clipboard && window.isSecureContext && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(successMsg);
+                }).catch(() => {
+                    fallbackExecCopy(text, successMsg);
+                });
+            } else {
+                fallbackExecCopy(text, successMsg);
+            }
+        }
+
+        function fallbackExecCopy(text, successMsg) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.top = '0';
+            textarea.style.left = '0';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showToast(successMsg);
+                } else {
+                    showToast('Đã bôi đen lệnh, bạn hãy nhấn Ctrl+C để sao chép', 'fa-info-circle text-purple-400');
+                }
+            } catch (err) {
+                showToast('Đã bôi đen lệnh, bạn hãy nhấn Ctrl+C để sao chép', 'fa-info-circle text-purple-400');
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // Copy Console Script in Helper Modal
+        function copyConsoleScript() {
+            const codeEl = document.getElementById('consoleScriptCode');
+            const text = codeEl ? codeEl.innerText.trim() : '';
+            if (!text) return;
+            copyToClipboardHelper(text, 'Đã sao chép câu lệnh vào Clipboard!');
+        }
+
+        // Copy Class Codes to clipboard
+        function copyClassCodes() {
+            if (allSchedules.length === 0) return;
+            const sched = allSchedules[currentScheduleIdx];
+            const codes = sched.classes.map(c => `${c.course_code}: ${c.class_code} (${c.course_name})`).join('\n');
+            copyToClipboardHelper(codes, 'Đã sao chép danh sách mã lớp vào Clipboard!');
+        }
+    </script>
+</body>
+</html>
